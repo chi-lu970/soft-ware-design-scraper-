@@ -11,7 +11,7 @@ import time
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 
 class Scraper:
@@ -27,8 +27,8 @@ class Scraper:
         _raw_xml (str | None): 原始 XML 回應內容（fetch 後才有值）
     """
 
-    # Google News RSS Feed 搜尋網址模板
-    RSS_URL_TEMPLATE = "https://news.google.com/rss/search?q={keyword}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+    # Bing News RSS Feed 搜尋網址模板（description 欄位包含真正的文章摘要）
+    RSS_URL_TEMPLATE = "https://www.bing.com/news/search?q={keyword}&format=RSS"
 
     def __init__(self, keyword: str, max_results: int = 10):
         """
@@ -79,70 +79,74 @@ class Scraper:
 
     def _extract_snippet(self, description: str) -> str:
         """
-        從文章描述中擷取包含關鍵字的片段（字串匹配，非 AI 邏輯）。
-
-        搜尋關鍵字在描述文字中的位置，擷取前後各 50 個字元。
-        若關鍵字不存在，則回傳描述的前 100 個字元。
+        取得文章描述的第一段文字（>= 20 字），超過 50 字則截斷並加上「...」。
 
         Args:
-            description: 文章描述文字
+            description: RSS description 欄位文字（已去除 HTML 標籤）
 
         Returns:
-            包含關鍵字前後文的字串片段
+            最多 50 字的第一段摘要
         """
         if not description:
             return ""
 
-        # 不分大小寫搜尋關鍵字位置
-        lower_desc = description.lower()
-        lower_keyword = self.keyword.lower()
-        pos = lower_desc.find(lower_keyword)
+        # 取第一個長度 >= 20 的非空段落
+        for line in description.splitlines():
+            line = line.strip()
+            if len(line) >= 20:
+                return line[:50] + ("..." if len(line) > 50 else "")
 
-        if pos == -1:
-            # 關鍵字不在描述中，回傳前 100 個字元
-            return description[:100] + ("..." if len(description) > 100 else "")
+        # 所有段落都太短，直接取前 50 字
+        text = description.strip()
+        return text[:50] + ("..." if len(text) > 50 else "")
 
-        # 計算擷取範圍（前後各 50 字元，不超出字串邊界）
-        start = max(0, pos - 50)
-        end = min(len(description), pos + len(self.keyword) + 50)
-
-        snippet = description[start:end]
-
-        # 若非從頭開始，加上省略號表示有前文
-        if start > 0:
-            snippet = "..." + snippet
-        if end < len(description):
-            snippet = snippet + "..."
-
-        return snippet
-
-    def _extract_source(self, item: BeautifulSoup, link: str) -> str:
+    def _extract_source(self, item: BeautifulSoup) -> str:
         """
-        從 RSS item 中提取來源名稱。
+        從 Bing News RSS item 中提取來源名稱。
 
-        優先使用 <source> 標籤，若不存在則從 URL 解析網域名稱。
+        Bing News 使用 <News:Source> 標籤存放來源名稱。
 
         Args:
             item: BeautifulSoup 解析後的單一 RSS item 元素
-            link: 文章連結 URL
 
         Returns:
             來源名稱字串
         """
-        # 嘗試從 <source> 標籤取得來源名稱
-        source_tag = item.find("source")
-        if source_tag and source_tag.get_text(strip=True):
-            return source_tag.get_text(strip=True)
-
-        # 若無 <source> 標籤，從 URL 解析網域名稱
-        if link:
-            try:
-                parsed = urlparse(link)
-                return parsed.netloc  # 例如：news.example.com
-            except Exception:
-                pass
+        # Bing News 的來源在 <News:Source> 標籤
+        news_source = item.find("News:Source")
+        if news_source and news_source.get_text(strip=True):
+            return news_source.get_text(strip=True)
 
         return "（未知來源）"
+
+    def _extract_url(self, item: BeautifulSoup) -> str:
+        """
+        從 Bing News RSS item 中提取真正的文章 URL。
+
+        Bing News 的 <link> 是重導向連結，真正的文章 URL
+        藏在其 url= 查詢參數中。
+
+        Args:
+            item: BeautifulSoup 解析後的單一 RSS item 元素
+
+        Returns:
+            文章原始 URL 字串
+        """
+        link_tag = item.find("link")
+        if not link_tag:
+            return ""
+
+        bing_url = link_tag.get_text(strip=True)
+        try:
+            # 從 Bing redirect URL 解析 url= 參數取得真正文章網址
+            parsed = urlparse(bing_url)
+            params = parse_qs(parsed.query)
+            if "url" in params:
+                return params["url"][0]
+        except Exception:
+            pass
+
+        return bing_url
 
     def parse(self) -> list[dict]:
         """
@@ -176,26 +180,19 @@ class Scraper:
             title_tag = item.find("title")
             title = title_tag.get_text(strip=True) if title_tag else "（無標題）"
 
-            # 提取原網址
-            link_tag = item.find("link")
-            # BeautifulSoup 對 <link> 的處理方式視解析器而異
-            if link_tag:
-                url = link_tag.get_text(strip=True) or link_tag.get("href", "")
-            else:
-                url = ""
+            # 提取真正的文章網址（從 Bing redirect URL 解析）
+            url = self._extract_url(item)
 
-            # 提取來源
-            source = self._extract_source(item, url)
+            # 提取來源（Bing News 用 <News:Source> 標籤）
+            source = self._extract_source(item)
 
-            # 提取描述並生成關鍵句子
+            # 從 RSS description 欄位擷取第一段文字
             desc_tag = item.find("description")
             if desc_tag:
-                # 描述欄位可能含有 HTML 標籤，先去除
                 desc_soup = BeautifulSoup(desc_tag.get_text(), "html.parser")
                 description = desc_soup.get_text(strip=True)
             else:
                 description = ""
-
             snippet = self._extract_snippet(description)
 
             results.append({

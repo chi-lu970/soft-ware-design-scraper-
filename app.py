@@ -19,12 +19,56 @@ from scraper import Scraper
 
 # ── 頁面基本設定 ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Web 關鍵字爬蟲系統",
-    page_icon="🔍",
+    page_title="關鍵字爬蟲整合系統",
     layout="wide",
 )
 
-st.title("🔍 Web 關鍵字爬蟲整合系統")
+st.markdown("""
+<style>
+[data-testid="stDataFrameResizable"] th {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+}
+[data-testid="stBaseButton-primary"] {
+    background-color: #1a73e8 !important;
+    border-color: #1a73e8 !important;
+    color: white !important;
+}
+[data-testid="stBaseButton-primary"]:hover {
+    background-color: #1558b0 !important;
+    border-color: #1558b0 !important;
+}
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextInput"] input:active,
+[data-testid="stTextInput"] input:focus-visible {
+    border-color: #1a73e8 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+[data-testid="stTextInput"]:focus-within {
+    border-color: #1a73e8 !important;
+    box-shadow: none !important;
+}
+/* 工具列常駐顯示、靠左 */
+[data-testid="stElementToolbar"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    left: 0 !important;
+    right: auto !important;
+}
+/* 工具列按鈕放大 */
+[data-testid="stBaseButton-elementToolbar"] {
+    width: 34px !important;
+    height: 34px !important;
+}
+[data-testid="stBaseButton-elementToolbar"] svg {
+    width: 18px !important;
+    height: 18px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("關鍵字爬蟲整合系統")
 st.markdown(
     "輸入關鍵字後點擊搜尋，系統將自動從 **Google News RSS** 爬取相關新聞，"
     "並以表格形式呈現結果。"
@@ -45,7 +89,7 @@ with col1:
 
 with col2:
     # 搜尋按鈕
-    search_clicked = st.button("🔍 搜尋", use_container_width=True, type="primary")
+    search_clicked = st.button("搜尋", use_container_width=True, type="primary")
 
 
 # ── session_state 初始化（保存搜尋結果，避免輸入框變動時畫面清空） ──────────────────
@@ -99,9 +143,9 @@ if st.session_state.result_df is not None:
     if df.empty:
         st.info(f"⚠️ 未找到「{saved_keyword}」的相關結果，請嘗試其他關鍵字。")
     else:
-        st.success(f"✅ 共找到 **{len(df)}** 筆結果（關鍵字：{saved_keyword}）")
+        st.success(f"共找到 **{len(df)}** 筆結果（關鍵字：{saved_keyword}）")
         st.dataframe(
-            df,
+            df.reset_index(drop=True),
             use_container_width=True,
             hide_index=True,
             column_config={
