@@ -12,6 +12,7 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
+from email.utils import parsedate_to_datetime
 
 
 class Scraper:
@@ -163,6 +164,28 @@ class Scraper:
         # 找不到乾淨句子
         return ""
 
+    def _extract_pubdate(self, item: BeautifulSoup) -> str:
+        """
+        從 RSS item 的 <pubDate> 標籤提取刊登時間。
+
+        RSS pubDate 格式為 RFC 2822（如 Tue, 01 Apr 2026 08:00:00 GMT），
+        解析後格式化為 YYYY/MM/DD HH:MM。
+
+        Args:
+            item: BeautifulSoup 解析後的單一 RSS item 元素
+
+        Returns:
+            格式化後的時間字串，解析失敗時回傳空字串
+        """
+        pubdate_tag = item.find("pubDate")
+        if not pubdate_tag:
+            return ""
+        try:
+            dt = parsedate_to_datetime(pubdate_tag.get_text(strip=True))
+            return dt.strftime("%Y/%m/%d %H:%M")
+        except Exception:
+            return ""
+
     def _extract_source(self, item: BeautifulSoup) -> str:
         """
         從 Bing News RSS item 中提取來源名稱。
@@ -258,8 +281,12 @@ class Scraper:
                 description = ""
             snippet = self._extract_snippet(description, keyword=self.keyword)
 
+            # 提取刊登時間（RSS pubDate 欄位）
+            pubdate = self._extract_pubdate(item)
+
             results.append({
                 "標題": title,
+                "刊登時間": pubdate,
                 "來源": source,
                 "關鍵句子": snippet,
                 "網址": url,
@@ -285,4 +312,10 @@ class Scraper:
         """
         self.fetch()
         results = self.parse()
-        return pd.DataFrame(results)
+        df = pd.DataFrame(results)
+
+        # 依刊登時間由近到遠排序（空值排最後）
+        if "刊登時間" in df.columns and not df.empty:
+            df = df.sort_values("刊登時間", ascending=False, na_position="last").reset_index(drop=True)
+
+        return df

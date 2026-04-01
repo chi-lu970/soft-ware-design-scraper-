@@ -149,13 +149,14 @@ if st.session_state.result_df is not None:
             use_container_width=True,
             hide_index=True,
             column_config={
-                "標題": st.column_config.TextColumn("標題", width="large"),
-                "來源": st.column_config.TextColumn("來源", width="small"),
-                "關鍵句子": st.column_config.TextColumn("關鍵句子", width="large"),
+                "標題": st.column_config.TextColumn("標題", width=260),
+                "刊登時間": st.column_config.TextColumn("刊登時間", width=60),
+                "來源": st.column_config.TextColumn("來源", width=60),
+                "關鍵句子": st.column_config.TextColumn("關鍵句子", width=600),
                 "網址": st.column_config.LinkColumn(
                     "網址",
                     display_text="開啟連結",
-                    width="small",
+                    width=60,
                 ),
             },
         )
