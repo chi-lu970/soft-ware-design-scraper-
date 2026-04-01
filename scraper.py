@@ -77,28 +77,91 @@ class Scraper:
         # 爬蟲禮儀：請求完成後等待 1 秒
         time.sleep(1)
 
-    def _extract_snippet(self, description: str) -> str:
+    # 已知的廣告／媒體自介樣板詞
+    # 句子中只要命中任一，整句視為垃圾並跳過
+    _NOISE_PATTERNS = [
+        # Yahoo / Google 推廣語
+        "設為首選來源",
+        "查看更多我們的精彩報導",
+        "在 Google 上查看",
+        "在 Yahoo 上查看",
+        # 媒體自我介紹
+        "致力為全球華文受眾",
+        "提供獨立、可信、中立",
+        "擁有國際視角、深度、廣度和維度",
+        # 其他常見樣板
+        "訂閱電子報",
+        "加入會員",
+    ]
+
+    def _is_noise(self, sentence: str) -> bool:
+        """句子中含有任一噪音樣板，則整句視為垃圾。"""
+        return any(pattern in sentence for pattern in self._NOISE_PATTERNS)
+
+    def _split_sentences(self, text: str) -> list[str]:
         """
-        取得文章描述的第一段文字（>= 20 字），超過 50 字則截斷並加上「...」。
+        將描述文字切成句子列表。
+        只按句號、問號、驚嘆號拆分，保留完整句子（含句末標點）。
+        """
+        sentences = []
+        for line in text.splitlines():
+            for seg in (
+                line.replace("。", "。\n")
+                    .replace("！", "！\n")
+                    .replace("？", "？\n")
+                    .splitlines()
+            ):
+                seg = seg.strip()
+                if seg:
+                    sentences.append(seg)
+        return sentences
+
+    def _extract_snippet(self, description: str, keyword: str = "") -> str:
+        """
+        取得文章描述中最相關的句子，截取前 50 字並加上「...」。
+
+        流程：切句 → 整句含噪音就跳過 → 依優先序選取乾淨句子。
+
+        優先序：
+        1. 不是垃圾 + 含關鍵字 + >= 20 字
+        2. 不是垃圾 + >= 50 字
+        3. 不是垃圾 + >= 20 字
+        4. 找不到乾淨句子 → 回傳空字串
 
         Args:
             description: RSS description 欄位文字（已去除 HTML 標籤）
+            keyword: 搜尋關鍵字，用於優先匹配含關鍵字的句子
 
         Returns:
-            最多 50 字的第一段摘要
+            完整句子（<= 50 字）或截斷前 50 字加「...」；無乾淨內容時為空字串
         """
         if not description:
             return ""
 
-        # 取第一個長度 >= 20 的非空段落
-        for line in description.splitlines():
-            line = line.strip()
-            if len(line) >= 20:
-                return line[:50] + ("..." if len(line) > 50 else "")
+        sentences = self._split_sentences(description)
+        clean = [s for s in sentences if not self._is_noise(s)]
 
-        # 所有段落都太短，直接取前 50 字
-        text = description.strip()
-        return text[:50] + ("..." if len(text) > 50 else "")
+        def fmt(s: str) -> str:
+            return s if len(s) <= 50 else s[:50] + "..."
+
+        # 1. 含關鍵字 + >= 20 字
+        if keyword:
+            for s in clean:
+                if len(s) >= 20 and keyword in s:
+                    return fmt(s)
+
+        # 2. >= 50 字
+        for s in clean:
+            if len(s) >= 50:
+                return fmt(s)
+
+        # 3. >= 20 字
+        for s in clean:
+            if len(s) >= 20:
+                return fmt(s)
+
+        # 找不到乾淨句子
+        return ""
 
     def _extract_source(self, item: BeautifulSoup) -> str:
         """
@@ -193,7 +256,7 @@ class Scraper:
                 description = desc_soup.get_text(strip=True)
             else:
                 description = ""
-            snippet = self._extract_snippet(description)
+            snippet = self._extract_snippet(description, keyword=self.keyword)
 
             results.append({
                 "標題": title,

@@ -12,38 +12,74 @@
 - **THEN** 系統使用「（無標題）」作為預設值
 
 ### Requirement: 來源擷取
-系統 SHALL 從 `<source>` 標籤或網址的網域名稱中擷取來源資訊。
+系統 SHALL 從 Bing News RSS 的 `<News:Source>` 標籤擷取來源媒體名稱。
 
-#### Scenario: source 標籤存在
-- **WHEN** RSS item 包含 `<source>` 標籤
-- **THEN** 系統擷取 source 標籤的文字作為來源欄位
+#### Scenario: News:Source 標籤存在
+- **WHEN** RSS item 包含 `<News:Source>` 標籤且有文字內容
+- **THEN** 系統擷取其文字作為來源欄位
 
-#### Scenario: source 標籤不存在
-- **WHEN** RSS item 缺少 `<source>` 標籤
-- **THEN** 系統從 `<link>` URL 解析網域名稱（例如 `news.example.com`）作為來源
+#### Scenario: News:Source 標籤不存在
+- **WHEN** RSS item 缺少 `<News:Source>` 標籤
+- **THEN** 系統回傳「（未知來源）」作為預設值
 
-### Requirement: 關鍵句子擷取（字串匹配）
-系統 SHALL 在 `<description>` 欄位中搜尋關鍵字，並擷取關鍵字前後各 50 個字元作為 Snippet。此邏輯 MUST 使用純字串匹配，不得使用 AI 或 NLP 技術。
+### Requirement: 關鍵句子擷取（句子級過濾 + 優先序選取）
+系統 SHALL 從 `<description>` 欄位中以句子為單位過濾廣告噪音，並依優先序選取最相關的乾淨句子作為 Snippet。此邏輯 MUST 使用規則式字串匹配，不得使用 AI 或 NLP 技術。
 
-#### Scenario: 關鍵字出現在描述中
-- **WHEN** `<description>` 文字包含搜尋關鍵字（不分大小寫）
-- **THEN** 系統擷取關鍵字位置前後各 50 字元，格式為「...前文【關鍵字】後文...」
+**擷取流程**:
+1. 從 `<description>` 取得純文字（去除 HTML 標籤）
+2. 依 `。！？` 與換行符切成句子列表
+3. 對每個句子執行噪音判斷：句子中含任一黑名單樣板詞 → 整句跳過
+4. 在乾淨句子中依優先序選取
 
-#### Scenario: 關鍵字未出現在描述中
-- **WHEN** `<description>` 文字不包含搜尋關鍵字
-- **THEN** 系統回傳 `<description>` 的前 100 個字元作為 Snippet
+**噪音黑名單（整句跳過條件）**:
+- `設為首選來源`
+- `查看更多我們的精彩報導`
+- `在 Google 上查看`
+- `在 Yahoo 上查看`
+- `致力為全球華文受眾`
+- `提供獨立、可信、中立`
+- `擁有國際視角、深度、廣度和維度`
+- `訂閱電子報`
+- `加入會員`
+
+**選取優先序**（在乾淨句子上執行）:
+
+| 優先 | 條件 | 說明 |
+|---|---|---|
+| 1 | 含關鍵字 + >= 20 字 | 最相關且乾淨的句子 |
+| 2 | >= 50 字 | 夠長代表有實質內容 |
+| 3 | >= 20 字 | 放寬長度限制，取第一個有意義片段 |
+| 4 | 無乾淨句子 | 回傳空字串，不顯示廣告 |
+
+**輸出格式**: 句子 <= 50 字時完整保留（含句末標點）；> 50 字時截斷前 50 字並加上「...」
+
+#### Scenario: 存在含關鍵字的乾淨句子
+- **WHEN** description 中有不含噪音、長度 >= 20 字、且包含搜尋關鍵字的句子
+- **THEN** 系統回傳第一個符合條件的句子（最多 50 字）
+
+#### Scenario: 無含關鍵字句子但有乾淨長句
+- **WHEN** description 中無含關鍵字的乾淨句子，但有不含噪音且長度 >= 50 字的句子
+- **THEN** 系統回傳第一個符合條件的句子（截斷至 50 字 + "..."）
+
+#### Scenario: 僅有短的乾淨句子
+- **WHEN** description 中的乾淨句子長度皆 < 50 字，但有長度 >= 20 字者
+- **THEN** 系統回傳第一個 >= 20 字的乾淨句子
+
+#### Scenario: 所有句子皆含噪音
+- **WHEN** description 中所有句子均命中噪音黑名單
+- **THEN** 系統回傳空字串，不強制顯示廣告內容
 
 #### Scenario: 描述欄位不存在
 - **WHEN** RSS item 缺少 `<description>` 標籤
 - **THEN** 系統回傳空字串作為 Snippet
 
 ### Requirement: 原網址擷取
-系統 SHALL 從 `<link>` 標籤擷取原始文章 URL。
+系統 SHALL 從 Bing News RSS 的 `<link>` 標籤解析真實文章 URL。
 
-#### Scenario: link 存在
-- **WHEN** RSS item 包含 `<link>` 標籤
-- **THEN** 系統擷取完整 URL 字串
+#### Scenario: link 為 Bing redirect URL
+- **WHEN** RSS item 的 `<link>` 含 `url=` 查詢參數
+- **THEN** 系統解析 `url` 參數值，回傳原始文章網址
 
-#### Scenario: link 不存在
-- **WHEN** RSS item 缺少 `<link>` 標籤
-- **THEN** 系統使用空字串作為 URL 值
+#### Scenario: link 不含 url 參數或標籤不存在
+- **WHEN** RSS item 缺少 `<link>` 或 link 不含 `url=` 參數
+- **THEN** 系統回傳 link 原始值或空字串
