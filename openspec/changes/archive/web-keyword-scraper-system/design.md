@@ -89,13 +89,21 @@ RSS description 原文
 - 媒體自介樣板：`致力為全球華文受眾`、`提供獨立、可信、中立`
 - 其他：`訂閱電子報`、`加入會員`
 
-### 5. URL 顯示：HTML `<a>` 標籤 via `st.markdown`
-**選擇**: 使用 `st.markdown` 搭配 unsafe_allow_html 渲染可點擊連結
-**理由**: Streamlit 原生 DataFrame 不支援 HTML 連結，此為官方建議的替代方案。
+### 5. URL 顯示：`st.column_config.LinkColumn`（實作版本修正）
+**選擇**: 使用 `st.column_config.LinkColumn`，設定 `display_text="開啟連結"`
+**理由**: Streamlit 1.32+ 提供原生 `LinkColumn`，比 `unsafe_allow_html` 更安全且無 XSS 風險，同時維持可點擊連結體驗。原規格採用 `st.markdown` + `unsafe_allow_html`，實作時改為 LinkColumn 以符合安全最佳實踐。
 
 ### 6. Bing URL 解析：從重導向連結提取原始網址
 **選擇**: 解析 Bing redirect URL 中的 `url=` 查詢參數
-**理由**: Bing News RSS 的 `<link>` 欄位為 Bing 自身的重導向連結（`apiclick.aspx?...&url=原始網址`），需解析 `url` 參數才能取得真正的文章網址。
+**理由**: Bing News RSS 的 `<link>` 欄位為 Bing 自身的重導向連結（`apiclick.aspx?...&url=原始網址`），需解析 `url` 參數才能取得真正的文章網址。使用 `urllib.parse.urlparse` + `parse_qs` 標準庫實作，無需額外依賴。
+
+### 7. 刊登時間欄位與排序（實作版本新增）
+**選擇**: 新增「刊登時間」欄位（YYYY/MM/DD HH:MM），並依此欄位降序排列
+**理由**: RSS `<pubDate>` 欄位提供了 RFC 2822 格式的發布時間。加入此欄位讓使用者可判斷資訊新鮮度；依時間排序確保最新消息優先顯示，符合新聞查詢的使用習慣。使用標準庫 `email.utils.parsedate_to_datetime` 解析，不增加外部依賴。
+
+### 8. Session State 結果保留（實作版本新增）
+**選擇**: 將搜尋結果（DataFrame）與關鍵字存入 `st.session_state`
+**理由**: Streamlit 每次互動均會重新執行整個 `app.py`。若不使用 session_state，使用者點擊輸入框後畫面即清空，體驗極差。透過 `st.session_state.result_df` 與 `st.session_state.result_keyword` 保留上一次搜尋結果，使結果顯示不依賴「搜尋按鈕是否剛被點擊」。
 
 ## Risks / Trade-offs
 
