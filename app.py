@@ -70,7 +70,7 @@ st.markdown("""
 
 st.title("關鍵字爬蟲整合系統")
 st.markdown(
-    "輸入關鍵字後點擊搜尋，系統將自動從 **Google News RSS** 爬取相關新聞，"
+    "輸入關鍵字後點擊搜尋，系統將自動從 **Bing News RSS** 爬取相關新聞，"
     "並以表格形式呈現結果。"
 )
 st.divider()
@@ -165,6 +165,6 @@ if st.session_state.result_df is not None:
 # ── 頁面底部說明 ──────────────────────────────────────────────────────────────────
 st.divider()
 st.caption(
-    "📌 資料來源：Google News RSS Feed｜"
+    "📌 資料來源：Bing News RSS Feed｜"
     "本系統僅供學術教學使用，請遵守目標網站的使用條款。"
 )
