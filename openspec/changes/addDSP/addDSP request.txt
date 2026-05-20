@@ -1,0 +1,35 @@
+需求:Design Pattern 加入系統程式碼中融入
+
+1. 由於學校教授需要，我需要在實作的程式碼中連續使用三種不同的Design Pattern的用法與技巧 
+2. Design Pattern 的23個種類可以參考以下:
+	蠅量級（享元）模式 Flyweight
+	簡單工廠模式 Simple Factory
+	狀態模式 State
+	表象（外觀）模式 Facade
+	觀察者模式 Observer
+
+	合成模式 Composite
+	原型模式 Prototype
+	抽象工廠模式 Abstract Factory
+	建造者模式 Builder
+	工廠模式 Factory
+
+	裝飾者模式 Decorator
+	備忘錄模式 Memento
+	轉接器模式 Adapter
+
+	單例模式 Singleton
+	策略模式 Strategy
+	命令模式 Command
+	樣版模式 Template
+	代理模式 Proxy
+
+	責任鏈模式 Chain Of Responsibility
+	走訪器模式 Iterator
+	解譯器模式 Interpreter
+	中介者模式 Mediator
+	橋梁模式 Bridge
+	拜訪者模式 Visitor
+3. 請去大致理解每個Design Pattern的使用時機、目的、與技巧，並生成一個方便你自己閱讀的Design Pattern 整理文件，方便你自己進行後續的作業
+4. 請任意選擇三種較符合我目前實作程式碼的 Design Pattern 並連續使用並融入(或改寫)我的程式碼中，並且再生成一個文件去說明在哪個地方用了哪種Design Pattern
+5. 請注意不要把程式改壞了，謝謝

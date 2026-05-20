@@ -13,8 +13,8 @@ import requests
 import streamlit as st
 import pandas as pd
 
-# 從 Model 層匯入 Scraper 類別
-from scraper import Scraper
+# 從 Model 層匯入爬蟲外觀類別與 Streamlit 進度觀察者
+from scraper import ScraperFacade, StreamlitProgressObserver
 
 
 # ── 頁面基本設定 ────────────────────────────────────────────────────────────────
@@ -109,7 +109,8 @@ if search_clicked:
     # 執行爬蟲，顯示載入狀態
     with st.spinner(f'正在爬取「{keyword}」的相關新聞，請稍候...'):
         try:
-            scraper = Scraper(keyword=keyword, max_results=10)
+            scraper = ScraperFacade(keyword=keyword, max_results=10)
+            scraper.attach(StreamlitProgressObserver())
             df = scraper.run()
 
         except requests.exceptions.ConnectionError:
